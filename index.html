@@ -27,16 +27,71 @@
       gap: 10px;
     }
 
+    .top-panel {
+      position: relative;
+      min-height: 96px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
     .display {
+      width: 100%;
+      padding: 0 110px;
       text-align: center;
+      color: #222;
+      line-height: 1.12;
+    }
+
+    .number-line {
       font-size: clamp(42px, 7vw, 72px);
       font-weight: 800;
-      line-height: 1;
-      color: #222;
       letter-spacing: 3px;
-      min-height: 76px;
-      display: grid;
-      place-items: center;
+    }
+
+    .word-line {
+      margin-top: 5px;
+      min-height: 28px;
+      font-size: clamp(18px, 2.6vw, 26px);
+      font-weight: 800;
+      line-height: 1.2;
+      letter-spacing: .3px;
+      overflow-wrap: anywhere;
+      padding: 0 6px;
+    }
+
+    .word-line.hidden {
+      display: none;
+    }
+
+    .lang-switch {
+      position: absolute;
+      right: 0;
+      top: 8px;
+      display: flex;
+      gap: 5px;
+      z-index: 100;
+      background: #ffffff;
+      padding: 5px;
+      border-radius: 13px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.10);
+    }
+
+    .lang-btn {
+      min-width: 42px;
+      height: 34px;
+      border-radius: 10px;
+      border: 2px solid #222;
+      background: #fff;
+      color: #111;
+      font-size: 14px;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .lang-btn.active {
+      background: #222;
+      color: #fff;
     }
 
     .main-area {
@@ -168,9 +223,46 @@
         gap: 8px;
       }
 
+      .top-panel {
+        min-height: 118px;
+        flex-direction: column;
+        justify-content: center;
+        gap: 6px;
+      }
+
       .display {
-        min-height: 58px;
+        padding: 0 6px;
+      }
+
+      .number-line {
         font-size: clamp(42px, 12vw, 62px);
+      }
+
+      .word-line {
+        font-size: clamp(17px, 5vw, 22px);
+        min-height: 24px;
+        line-height: 1.2;
+      }
+
+      /*
+        Mobile fix:
+        Put NUM / ZH / BM above the number.
+      */
+      .lang-switch {
+        position: static;
+        right: auto;
+        top: auto;
+        order: -1;
+        margin: 0 auto;
+        gap: 4px;
+        padding: 4px;
+      }
+
+      .lang-btn {
+        min-width: 46px;
+        height: 31px;
+        font-size: 13px;
+        padding: 5px 10px;
       }
 
       .main-area {
@@ -231,7 +323,18 @@
 
 <body>
   <main class="tool">
-    <div class="display" id="numberDisplay">0</div>
+    <section class="top-panel">
+      <div class="lang-switch" aria-label="Language switch">
+        <button class="lang-btn active" type="button" data-lang="num">NUM</button>
+        <button class="lang-btn" type="button" data-lang="zh">ZH</button>
+        <button class="lang-btn" type="button" data-lang="bm">BM</button>
+      </div>
+
+      <div class="display">
+        <div class="number-line" id="numberDisplay">0</div>
+        <div class="word-line hidden" id="wordDisplay"></div>
+      </div>
+    </section>
 
     <section class="main-area">
       <section class="tray">
@@ -266,13 +369,45 @@
   <script>
     const workspace = document.getElementById("workspace");
     const display = document.getElementById("numberDisplay");
+    const wordDisplay = document.getElementById("wordDisplay");
     const hint = document.getElementById("hint");
     const resetBtn = document.getElementById("resetBtn");
     const sources = document.querySelectorAll(".source-card[data-type]");
+    const langButtons = document.querySelectorAll(".lang-btn");
 
     let total = 0;
     let currentDrag = null;
+    let currentLang = "num";
     const placedBlocks = [];
+
+    const languageData = {
+      num: {
+        words: numberToNum
+      },
+      zh: {
+        words: numberToChinese
+      },
+      bm: {
+        words: numberToMalay
+      }
+    };
+
+    langButtons.forEach(button => {
+      button.addEventListener("click", () => {
+        setLanguage(button.dataset.lang);
+      });
+    });
+
+    function setLanguage(lang) {
+      currentLang = lang;
+
+      langButtons.forEach(button => {
+        button.classList.toggle("active", button.dataset.lang === lang);
+      });
+
+      wordDisplay.classList.toggle("hidden", lang === "num");
+      updateDisplay();
+    }
 
     sources.forEach(source => source.addEventListener("pointerdown", startFromSource));
     resetBtn.addEventListener("click", reset);
@@ -304,8 +439,8 @@
     function setGhostSize(ghost, type) {
       const small = window.matchMedia("(max-width: 700px)").matches;
       const size = {
-        thousand: small ? ["118px", "118px"] : ["150px", "150px"],
-        hundred: small ? ["104px", "104px"] : ["132px", "132px"],
+        thousand: small ? ["140px", "140px"] : ["172px", "172px"],
+        hundred: small ? ["125px", "125px"] : ["153px", "153px"],
         ten: small ? ["112px", "32px"] : ["140px", "38px"],
         one: small ? ["50px", "50px"] : ["58px", "58px"]
       }[type];
@@ -419,12 +554,148 @@
 
     function updateDisplay() {
       display.textContent = total.toString();
+      wordDisplay.textContent = languageData[currentLang].words(total);
       hint.style.display = total === 0 ? "grid" : "none";
     }
 
     function clamp(value, min, max) {
       return Math.max(min, Math.min(max, value));
     }
+
+    function numberToNum(n) {
+      return "";
+    }
+
+    function numberToMalay(n) {
+      if (n === 0) return "sifar";
+
+      const ones = ["sifar", "satu", "dua", "tiga", "empat", "lima", "enam", "tujuh", "lapan", "sembilan"];
+
+      function under100(num) {
+        if (num < 10) return ones[num];
+        if (num === 10) return "sepuluh";
+        if (num === 11) return "sebelas";
+        if (num < 20) return ones[num - 10] + " belas";
+
+        const puluh = Math.floor(num / 10);
+        const sa = num % 10;
+        return ones[puluh] + " puluh" + (sa ? " " + ones[sa] : "");
+      }
+
+      function under1000(num) {
+        if (num < 100) return under100(num);
+
+        const ratus = Math.floor(num / 100);
+        const baki = num % 100;
+
+        let text = ratus === 1 ? "seratus" : ones[ratus] + " ratus";
+        if (baki > 0) text += " " + under100(baki);
+        return text;
+      }
+
+      function underMillion(num) {
+        if (num < 1000) return under1000(num);
+
+        const ribu = Math.floor(num / 1000);
+        const baki = num % 1000;
+
+        let text = ribu === 1 ? "seribu" : under1000(ribu) + " ribu";
+        if (baki > 0) text += " " + under1000(baki);
+        return text;
+      }
+
+      if (n < 1000000) return underMillion(n);
+
+      const juta = Math.floor(n / 1000000);
+      const baki = n % 1000000;
+
+      let text = juta === 1 ? "sejuta" : underMillion(juta) + " juta";
+      if (baki > 0) text += " " + underMillion(baki);
+      return text;
+    }
+
+    function numberToChinese(n) {
+      if (n === 0) return "零";
+
+      const digit = ["零", "一", "二", "三", "四", "五", "六", "七", "八", "九"];
+      const bigUnits = ["", "万", "亿", "兆"];
+
+      function sectionToChinese(num) {
+        const values = [1000, 100, 10, 1];
+        const units = ["千", "百", "十", ""];
+        let text = "";
+        let zeroPending = false;
+
+        for (let i = 0; i < values.length; i++) {
+          const value = values[i];
+          const d = Math.floor(num / value) % 10;
+          const hasLowerNumber = num % value !== 0;
+
+          if (d === 0) {
+            if (text !== "" && hasLowerNumber) {
+              zeroPending = true;
+            }
+            continue;
+          }
+
+          if (zeroPending) {
+            text += "零";
+            zeroPending = false;
+          }
+
+          // 10-19 at the beginning reads 十, 十一, 十二...
+          if (value === 10 && d === 1 && text === "") {
+            text += "十";
+          } else {
+            text += digit[d] + units[i];
+          }
+        }
+
+        return text;
+      }
+
+      let sections = [];
+      let temp = n;
+
+      while (temp > 0) {
+        sections.push(temp % 10000);
+        temp = Math.floor(temp / 10000);
+      }
+
+      let result = "";
+      let skippedZeroSection = false;
+
+      for (let i = sections.length - 1; i >= 0; i--) {
+        const section = sections[i];
+
+        if (section === 0) {
+          if (result !== "") skippedZeroSection = true;
+          continue;
+        }
+
+        /*
+          Correct zero rule:
+          Add 零 before a lower section only when:
+          1. A whole 0000 section was skipped, or
+          2. This lower section is below 1000, meaning it has leading zeros.
+
+          Example:
+          22266 = 二万二千二百六十六  ✅ no 零
+          20266 = 二万零二百六十六    ✅ need 零
+          20006 = 二万零六            ✅ need 零
+        */
+        if (result !== "" && (skippedZeroSection || section < 1000)) {
+          result += "零";
+        }
+
+        result += sectionToChinese(section) + bigUnits[i];
+        skippedZeroSection = false;
+      }
+
+      return result;
+    }
+
+    setLanguage("num");
   </script>
 </body>
 </html>
