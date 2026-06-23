@@ -821,38 +821,104 @@
         currentAudio.currentTime = 0;
       }
 
-      const rawWords = text.trim().toLowerCase().split(/\s+/).filter(Boolean);
+      const chunks = makeMalayAudioChunks(text);
 
-      // Keep the written BM correct, but play easier MP3 chunks if needed.
-      const words = rawWords.flatMap(word => {
-        if (word === "seratus") return ["satu", "ratus"];
-        if (word === "seribu") return ["satu", "ribu"];
-        if (word === "sejuta") return ["satu", "juta"];
-        return [word];
-      });
-
-      for (const word of words) {
+      for (const chunk of chunks) {
         if (token !== bmAudioToken) return;
-
-        await playMalayWordMp3(word, token);
+        await playMalayChunkMp3(chunk, token);
         await wait(0);
       }
     }
 
-    async function playMalayWordMp3(word, token) {
-      // GitHub Pages is case-sensitive, so support both .mp3 and .MP3.
-      const paths = [
-        `assets/audio/bm/${word}.mp3`,
-        `assets/audio/bm/${word}.MP3`
-      ];
+    function makeMalayAudioChunks(text) {
+      const rawWords = text.trim().toLowerCase().split(/\s+/).filter(Boolean);
+      const teenStartWords = new Set(["dua", "tiga", "empat", "lima", "enam", "tujuh", "lapan", "sembilan"]);
+      const chunks = [];
 
-      for (const src of paths) {
-        const ok = await playOneMp3(src, token);
-        if (ok) return true;
+      for (let i = 0; i < rawWords.length; i++) {
+        const word = rawWords[i];
+
+        // 12-19 can be handled in two ways:
+        // 1) one phrase file: dua belas.mp3 / dua_belas.mp3 / duabelas.mp3
+        // 2) two separate files: dua.mp3 + belas.mp3
+        if (teenStartWords.has(word) && rawWords[i + 1] === "belas") {
+          chunks.push(word + " belas");
+          i++;
+          continue;
+        }
+
+        // Keep compatibility if old wording ever appears.
+        if (word === "seratus") {
+          chunks.push("satu", "ratus");
+          continue;
+        }
+        if (word === "seribu") {
+          chunks.push("satu", "ribu");
+          continue;
+        }
+        if (word === "sejuta") {
+          chunks.push("satu", "juta");
+          continue;
+        }
+
+        chunks.push(word);
       }
 
-      console.warn("Missing BM audio file:", word);
+      return chunks;
+    }
+
+    async function playMalayChunkMp3(chunk, token) {
+      // First try a phrase file for 12-19, e.g.:
+      // dua belas.MP3 / dua_belas.MP3 / dua-belas.MP3 / duabelas.MP3
+      const phraseOk = await playMalayFileMp3(chunk, token, true);
+      if (phraseOk) return true;
+
+      // If phrase file is missing, fall back to separate word files:
+      // dua.MP3 + belas.MP3
+      if (chunk.includes(" ")) {
+        let anyOk = false;
+        const parts = chunk.split(/\s+/).filter(Boolean);
+        for (const part of parts) {
+          if (token !== bmAudioToken) return false;
+          const ok = await playMalayFileMp3(part, token, false);
+          anyOk = anyOk || ok;
+          await wait(0);
+        }
+        return anyOk;
+      }
+
       return false;
+    }
+
+    async function playMalayFileMp3(name, token, allowPhraseVariants) {
+      const forms = makeMalayFileNameVariants(name, allowPhraseVariants);
+      const extensions = [".mp3", ".MP3", ".Mp3"];
+
+      for (const form of forms) {
+        for (const ext of extensions) {
+          const src = `assets/audio/bm/${form}${ext}`;
+          const ok = await playOneMp3(src, token);
+          if (ok) return true;
+        }
+      }
+
+      console.warn("Missing BM audio file:", name);
+      return false;
+    }
+
+    function makeMalayFileNameVariants(name, allowPhraseVariants) {
+      const clean = name.trim().toLowerCase().replace(/\s+/g, " ");
+      const variants = [clean];
+
+      if (allowPhraseVariants && clean.includes(" ")) {
+        variants.push(
+          clean.replace(/\s+/g, "_"),
+          clean.replace(/\s+/g, "-"),
+          clean.replace(/\s+/g, "")
+        );
+      }
+
+      return [...new Set(variants)];
     }
 
     function playOneMp3(src, token) {
@@ -862,7 +928,7 @@
         const audio = new Audio(src);
         currentAudio = audio;
 
-        // Slightly faster BM MP3 playback for more natural flow.
+        // Faster BM MP3 playback for mobile.
         audio.playbackRate = 1.18;
 
         audio.onended = () => resolve(true);
@@ -929,7 +995,7 @@
 
 
     setLanguage("en");
-      // BM audio tuning: word gap = 0ms, playbackRate = 1.18
+      // BM audio tuning: word gap = 0ms, playbackRate = 1.18, teen fallback enabled
   </script>
 </body>
 </html>
