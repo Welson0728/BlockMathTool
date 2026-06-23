@@ -838,8 +838,10 @@
         utterance.rate = 0.85;
         utterance.pitch = 1.05;
       } else {
-        utterance.rate = 0.9;
-        utterance.pitch = 1.15;
+        // EN voice tuning only.
+        // Slower and softer than before, so it sounds less robotic.
+        utterance.rate = 0.88;
+        utterance.pitch = 1.05;
       }
 
       window.speechSynthesis.speak(utterance);
