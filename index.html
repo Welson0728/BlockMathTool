@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Base Ten Blocks Tool</title>
+  <title>Base Ten Blocks Tool EN ZH BM</title>
 
   <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -93,6 +93,24 @@
       background: #222;
       color: #fff;
     }
+
+    .speak-btn {
+      min-width: 42px;
+      height: 34px;
+      border-radius: 10px;
+      border: 2px solid #222;
+      background: #fff;
+      color: #111;
+      font-size: 15px;
+      font-weight: 900;
+      cursor: pointer;
+      padding: 5px 8px;
+    }
+
+    .speak-btn:active {
+      transform: scale(.98);
+    }
+
 
     .main-area {
       flex: 1;
@@ -246,7 +264,7 @@
 
       /*
         Mobile fix:
-        Put NUM / ZH / BM above the number.
+        Put EN / ZH / BM above the number.
       */
       .lang-switch {
         position: static;
@@ -263,6 +281,13 @@
         height: 31px;
         font-size: 13px;
         padding: 5px 10px;
+      }
+
+      .speak-btn {
+        min-width: 38px;
+        height: 31px;
+        font-size: 14px;
+        padding: 5px 8px;
       }
 
       .main-area {
@@ -325,9 +350,10 @@
   <main class="tool">
     <section class="top-panel">
       <div class="lang-switch" aria-label="Language switch">
-        <button class="lang-btn active" type="button" data-lang="num">NUM</button>
+        <button class="lang-btn active" type="button" data-lang="en">EN</button>
         <button class="lang-btn" type="button" data-lang="zh">ZH</button>
         <button class="lang-btn" type="button" data-lang="bm">BM</button>
+        <button class="speak-btn" id="speakBtn" type="button" aria-label="Speak">🔊</button>
       </div>
 
       <div class="display">
@@ -372,23 +398,29 @@
     const wordDisplay = document.getElementById("wordDisplay");
     const hint = document.getElementById("hint");
     const resetBtn = document.getElementById("resetBtn");
+    const speakBtn = document.getElementById("speakBtn");
     const sources = document.querySelectorAll(".source-card[data-type]");
     const langButtons = document.querySelectorAll(".lang-btn");
 
     let total = 0;
     let currentDrag = null;
-    let currentLang = "num";
+    let currentLang = "en";
+    let currentAudio = null;
+    let bmAudioToken = 0;
     const placedBlocks = [];
 
     const languageData = {
-      num: {
-        words: numberToNum
+      en: {
+        words: numberToEnglish,
+        speechLang: "en-US"
       },
       zh: {
-        words: numberToChinese
+        words: numberToChinese,
+        speechLang: "zh-CN"
       },
       bm: {
-        words: numberToMalay
+        words: numberToMalay,
+        speechLang: "ms-MY"
       }
     };
 
@@ -399,20 +431,18 @@
     });
 
     function setLanguage(lang) {
+      stopAllAudio();
       currentLang = lang;
 
       langButtons.forEach(button => {
         button.classList.toggle("active", button.dataset.lang === lang);
       });
 
-      wordDisplay.classList.toggle("hidden", lang === "num");
+      wordDisplay.classList.remove("hidden");
       updateDisplay();
     }
 
     sources.forEach(source => source.addEventListener("pointerdown", startFromSource));
-    resetBtn.addEventListener("click", reset);
-    resetBtn.addEventListener("pointerdown", e => e.stopPropagation());
-
     function startFromSource(e) {
       e.preventDefault();
 
@@ -547,6 +577,7 @@
     }
 
     function reset() {
+      stopAllAudio();
       placedBlocks.splice(0).forEach(block => block.remove());
       total = 0;
       updateDisplay();
@@ -562,8 +593,43 @@
       return Math.max(min, Math.min(max, value));
     }
 
-    function numberToNum(n) {
-      return "";
+    function numberToEnglish(n) {
+      if (n === 0) return "zero";
+
+      const ones = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
+                    "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen",
+                    "seventeen", "eighteen", "nineteen"];
+      const tens = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+
+      function under100(num) {
+        if (num < 20) return ones[num];
+        const t = Math.floor(num / 10);
+        const o = num % 10;
+        return tens[t] + (o ? " " + ones[o] : "");
+      }
+
+      function under1000(num) {
+        if (num < 100) return under100(num);
+        const h = Math.floor(num / 100);
+        const rest = num % 100;
+        return ones[h] + " hundred" + (rest ? " " + under100(rest) : "");
+      }
+
+      const scales = [
+        { value: 1000000000, word: "billion" },
+        { value: 1000000, word: "million" },
+        { value: 1000, word: "thousand" }
+      ];
+
+      for (const scale of scales) {
+        if (n >= scale.value) {
+          const high = Math.floor(n / scale.value);
+          const rest = n % scale.value;
+          return numberToEnglish(high) + " " + scale.word + (rest ? " " + numberToEnglish(rest) : "");
+        }
+      }
+
+      return under1000(n);
     }
 
     function numberToMalay(n) {
@@ -588,7 +654,9 @@
         const ratus = Math.floor(num / 100);
         const baki = num % 100;
 
-        let text = ratus === 1 ? "seratus" : ones[ratus] + " ratus";
+        // Place-value style for teaching:
+        // 100 = satu ratus, not seratus
+        let text = ones[ratus] + " ratus";
         if (baki > 0) text += " " + under100(baki);
         return text;
       }
@@ -599,7 +667,9 @@
         const ribu = Math.floor(num / 1000);
         const baki = num % 1000;
 
-        let text = ribu === 1 ? "seribu" : under1000(ribu) + " ribu";
+        // Place-value style for teaching:
+        // 1000 = satu ribu, not seribu
+        let text = under1000(ribu) + " ribu";
         if (baki > 0) text += " " + under1000(baki);
         return text;
       }
@@ -609,7 +679,9 @@
       const juta = Math.floor(n / 1000000);
       const baki = n % 1000000;
 
-      let text = juta === 1 ? "sejuta" : underMillion(juta) + " juta";
+      // Place-value style:
+      // 1000000 = satu juta, not sejuta
+      let text = underMillion(juta) + " juta";
       if (baki > 0) text += " " + underMillion(baki);
       return text;
     }
@@ -695,7 +767,165 @@
       return result;
     }
 
-    setLanguage("num");
+
+    resetBtn.addEventListener("click", reset);
+    resetBtn.addEventListener("pointerdown", e => e.stopPropagation());
+    speakBtn.addEventListener("click", speakCurrentAnswer);
+
+    async function speakCurrentAnswer() {
+      const text = languageData[currentLang].words(total);
+      if (!text) return;
+
+      // BM uses your own Malaysia Malay MP3 files from assets/audio/bm/
+      if (currentLang === "bm") {
+        window.speechSynthesis?.cancel();
+        await playMalayMp3Sequence(text);
+        return;
+      }
+
+      // EN and ZH use browser TTS.
+      if (!("speechSynthesis" in window)) return;
+
+      window.speechSynthesis.cancel();
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = languageData[currentLang].speechLang;
+      utterance.voice = getPreferredVoice(currentLang);
+
+      if (currentLang === "zh") {
+        utterance.rate = 0.85;
+        utterance.pitch = 1.05;
+      } else {
+        utterance.rate = 0.9;
+        utterance.pitch = 1.15;
+      }
+
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function stopAllAudio() {
+      bmAudioToken++;
+      if (currentAudio) {
+        currentAudio.pause();
+        currentAudio.currentTime = 0;
+      }
+      window.speechSynthesis?.cancel();
+    }
+
+    async function playMalayMp3Sequence(text) {
+      bmAudioToken++;
+      const token = bmAudioToken;
+
+      if (currentAudio) {
+        currentAudio.pause();
+        currentAudio.currentTime = 0;
+      }
+
+      const rawWords = text.trim().toLowerCase().split(/\s+/).filter(Boolean);
+
+      // Keep the written BM correct, but play easier MP3 chunks if needed.
+      const words = rawWords.flatMap(word => {
+        if (word === "seratus") return ["satu", "ratus"];
+        if (word === "seribu") return ["satu", "ribu"];
+        if (word === "sejuta") return ["satu", "juta"];
+        return [word];
+      });
+
+      for (const word of words) {
+        if (token !== bmAudioToken) return;
+
+        await playMalayWordMp3(word, token);
+        await wait(80);
+      }
+    }
+
+    async function playMalayWordMp3(word, token) {
+      // GitHub Pages is case-sensitive, so support both .mp3 and .MP3.
+      const paths = [
+        `assets/audio/bm/${word}.mp3`,
+        `assets/audio/bm/${word}.MP3`
+      ];
+
+      for (const src of paths) {
+        const ok = await playOneMp3(src, token);
+        if (ok) return true;
+      }
+
+      console.warn("Missing BM audio file:", word);
+      return false;
+    }
+
+    function playOneMp3(src, token) {
+      return new Promise(resolve => {
+        if (token !== bmAudioToken) return resolve(false);
+
+        const audio = new Audio(src);
+        currentAudio = audio;
+
+        audio.onended = () => resolve(true);
+        audio.onerror = () => resolve(false);
+
+        audio.play().catch(err => {
+          console.warn("Audio play blocked or failed:", err);
+          resolve(false);
+        });
+      });
+    }
+
+    function wait(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function getPreferredVoice(lang) {
+      const voices = window.speechSynthesis.getVoices();
+
+      const femaleKeywords = [
+        "female", "woman", "girl",
+        "zira", "aria", "jenny", "samantha", "victoria", "susan",
+        "karen", "moira", "tessa"
+      ];
+
+      function soundsFemale(voice) {
+        const name = voice.name.toLowerCase();
+        return femaleKeywords.some(keyword => name.includes(keyword));
+      }
+
+      function byLang(code) {
+        return voices.filter(v => v.lang.toLowerCase() === code.toLowerCase());
+      }
+
+      function byLangPrefix(prefix) {
+        return voices.filter(v => v.lang.toLowerCase().startsWith(prefix.toLowerCase()));
+      }
+
+      function chooseFemale(list) {
+        return list.find(soundsFemale) || list[0] || null;
+      }
+
+      if (lang === "en") {
+        const list = byLang("en-US").concat(byLang("en-GB")).concat(byLangPrefix("en"));
+        return chooseFemale(list);
+      }
+
+      if (lang === "zh") {
+        const list = byLang("zh-CN")
+          .concat(byLang("zh-TW"))
+          .concat(byLang("zh-HK"))
+          .concat(byLangPrefix("zh"));
+        return list[0] || null;
+      }
+
+      return null;
+    }
+
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.onvoiceschanged = () => {
+        window.speechSynthesis.getVoices();
+      };
+    }
+
+
+    setLanguage("en");
   </script>
 </body>
 </html>
