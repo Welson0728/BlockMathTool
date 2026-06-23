@@ -770,6 +770,48 @@
 
     resetBtn.addEventListener("click", reset);
     resetBtn.addEventListener("pointerdown", e => e.stopPropagation());
+
+    // Preload common BM audio files so phone playback feels faster after the page opens.
+    const bmCommonAudioWords = [
+      "sifar", "satu", "dua", "tiga", "empat", "lima", "enam", "tujuh", "lapan", "sembilan",
+      "sepuluh", "sebelas", "belas", "puluh", "ratus", "ribu", "juta"
+    ];
+    const bmAudioUrlCache = new Map();
+
+    function getBmAudioCandidatePaths(name) {
+      const forms = makeMalayFileNameVariants(name, true);
+      const extensions = [".MP3", ".mp3", ".Mp3"];
+      const paths = [];
+
+      for (const form of forms) {
+        for (const ext of extensions) {
+          paths.push(`assets/audio/bm/${form}${ext}`);
+        }
+      }
+
+      return paths;
+    }
+
+    function preloadMalayAudio() {
+      bmCommonAudioWords.forEach(word => {
+        getBmAudioCandidatePaths(word).forEach(src => {
+          const audio = new Audio();
+          audio.preload = "auto";
+          audio.src = src;
+          audio.load();
+        });
+      });
+    }
+
+    // Android / iPhone usually allows better loading after first touch.
+    window.addEventListener("load", () => {
+      setTimeout(preloadMalayAudio, 300);
+    }, { once: true });
+
+    document.addEventListener("pointerdown", () => {
+      preloadMalayAudio();
+    }, { once: true });
+
     speakBtn.addEventListener("click", speakCurrentAnswer);
 
     async function speakCurrentAnswer() {
@@ -832,21 +874,9 @@
 
     function makeMalayAudioChunks(text) {
       const rawWords = text.trim().toLowerCase().split(/\s+/).filter(Boolean);
-      const teenStartWords = new Set(["dua", "tiga", "empat", "lima", "enam", "tujuh", "lapan", "sembilan"]);
       const chunks = [];
 
-      for (let i = 0; i < rawWords.length; i++) {
-        const word = rawWords[i];
-
-        // 12-19 can be handled in two ways:
-        // 1) one phrase file: dua belas.mp3 / dua_belas.mp3 / duabelas.mp3
-        // 2) two separate files: dua.mp3 + belas.mp3
-        if (teenStartWords.has(word) && rawWords[i + 1] === "belas") {
-          chunks.push(word + " belas");
-          i++;
-          continue;
-        }
-
+      for (const word of rawWords) {
         // Keep compatibility if old wording ever appears.
         if (word === "seratus") {
           chunks.push("satu", "ratus");
@@ -861,6 +891,9 @@
           continue;
         }
 
+        // For 12-19, play as separate chunks:
+        // dua + belas, tiga + belas, etc.
+        // This is faster than trying many phrase filenames first.
         chunks.push(word);
       }
 
@@ -892,13 +925,23 @@
 
     async function playMalayFileMp3(name, token, allowPhraseVariants) {
       const forms = makeMalayFileNameVariants(name, allowPhraseVariants);
-      const extensions = [".mp3", ".MP3", ".Mp3"];
+      const extensions = [".MP3", ".mp3", ".Mp3"];
 
       for (const form of forms) {
         for (const ext of extensions) {
           const src = `assets/audio/bm/${form}${ext}`;
+
+          // If this word already worked before, try that exact URL first next time.
+          if (bmAudioUrlCache.get(name) === src) {
+            const ok = await playOneMp3(src, token);
+            if (ok) return true;
+          }
+
           const ok = await playOneMp3(src, token);
-          if (ok) return true;
+          if (ok) {
+            bmAudioUrlCache.set(name, src);
+            return true;
+          }
         }
       }
 
@@ -996,6 +1039,8 @@
 
     setLanguage("en");
       // BM audio tuning: word gap = 0ms, playbackRate = 1.18, teen fallback enabled
+      // BM mobile preload enabled: common MP3 files preload after page open / first touch.
+      // Audio load optimized: no phrase-file 404 attempts for 12-19; .MP3 tried first; preload/cache kept.
   </script>
 </body>
 </html>
