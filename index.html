@@ -835,7 +835,7 @@
         if (token !== bmAudioToken) return;
 
         await playMalayWordMp3(word, token);
-        await wait(5);
+        await wait(0);
       }
     }
 
@@ -863,7 +863,7 @@
         currentAudio = audio;
 
         // Slightly faster BM MP3 playback for more natural flow.
-        audio.playbackRate = 1.12;
+        audio.playbackRate = 1.18;
 
         audio.onended = () => resolve(true);
         audio.onerror = () => resolve(false);
@@ -929,7 +929,7 @@
 
 
     setLanguage("en");
-      // BM audio tuning: word gap = 5ms, playbackRate = 1.12
+      // BM audio tuning: word gap = 0ms, playbackRate = 1.18
   </script>
 </body>
 </html>
